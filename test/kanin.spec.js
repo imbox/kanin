@@ -8,7 +8,7 @@ var should = require('should')
 var Kanin = require('../')
 var utils = require('../lib/utils')
 
-var topologyBase = {
+var baseTopology = {
   connection: {
     host: 'localhost',
     port: 5672,
@@ -94,7 +94,7 @@ describe('Kanin', function () {
     async.series(
       [
         next => {
-          amqp.connect(utils.amqpUrl(topologyBase.connection), (err, conn) => {
+          amqp.connect(utils.amqpUrl(baseTopology.connection), (err, conn) => {
             connection = conn
             next(err)
           })
@@ -114,7 +114,7 @@ describe('Kanin', function () {
     var mq
 
     beforeEach(function (done) {
-      mq = new Kanin({topology: topologyBase})
+      mq = new Kanin({topology: baseTopology})
       done()
     })
 
@@ -391,7 +391,7 @@ describe('Kanin', function () {
       var queueId = uuid().slice(0, 8)
       requester = new Kanin({
         topology: {
-          connection: topologyBase.connection,
+          connection: baseTopology.connection,
           exchanges: [
             {
               name: 'requests-exchange',
@@ -410,7 +410,7 @@ describe('Kanin', function () {
 
       responder = new Kanin({
         topology: {
-          connection: topologyBase.connection,
+          connection: baseTopology.connection,
           exchanges: [
             {
               name: 'requests-exchange',
