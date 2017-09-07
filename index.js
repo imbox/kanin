@@ -93,6 +93,7 @@ Kanin.prototype.configure = function (cb) {
       )
     })
 
+    self.emit('connection.opened')
     cb()
   })
 }
@@ -376,10 +377,11 @@ Kanin.prototype._onConnectionClosed = function (err) {
   this.connection = null
   this.channel = null
 
-  this.emit('connection.closed', err)
-
-  // This close was not initiated by us
-  if (!this._closed) {
+  var isIntentionalClose = this._closed
+  if (isIntentionalClose) {
+    self.emit('connection.closed')
+  } else {
+    this.emit('connection.failed', err)
     this._reconnect()
   }
 }

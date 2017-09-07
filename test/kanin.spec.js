@@ -16,6 +16,12 @@ var topologyBase = {
     pass: 'kanin'
   },
 
+  socketOptions: {
+    clientProperties: {
+      service: 'kanin-test'
+    }
+  },
+
   queues: [
     {
       name: 'test-queue',
