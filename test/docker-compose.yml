@@ -1,0 +1,15 @@
+version: '2'
+
+services:
+  rabbit:
+    build:
+      context: ./rabbit
+    hostname: rabbit
+    ports:
+      - 15672:15672
+      - 5672:5672
+    environment:
+      - RABBITMQ_ERLANG_COOKIE="my super secret cookie"
+      - RABBITMQ_NODENAME=rabbit@rabbit
+      - RABBITMQ_DEFAULT_USER=kanin
+      - RABBITMQ_DEFAULT_PASS=kanin

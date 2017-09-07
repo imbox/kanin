@@ -1,0 +1,25 @@
+{
+  "name": "kanin",
+  "version": "1.0.0",
+  "description": "RabbitMQ client",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test:setup && npm run test:run; npm run test:teardown",
+    "test:setup": "./test/setup.sh",
+    "test:teardown": "./test/teardown.sh",
+    "test:run": "mocha ./test/*.spec.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amqplib": "^0.5.1",
+    "async": "^2.5.0",
+    "events": "^1.1.1",
+    "inherits": "^2.0.3",
+    "uuid": "^3.1.0"
+  },
+  "devDependencies": {
+    "mocha": "^3.5.0",
+    "should": "^12.0.0"
+  }
+}
