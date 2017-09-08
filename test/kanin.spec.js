@@ -337,6 +337,46 @@ describe('Kanin', function () {
       )
     })
 
+    it('publish after unsubscribe all queues', function (done) {
+      this.timeout(0)
+      var message
+      async.series(
+        [
+          next => mq.configure(next),
+          next => {
+            mq.handle(
+              {
+                queue: 'test-queue',
+                options: {prefetch: 1},
+                onMessage: msg => {
+                  msg.ack()
+                  message = msg
+                }
+              },
+              next
+            )
+          },
+          next => mq.unsubscribeAll(next),
+          next => {
+            publish('test-exchange', {
+              routingKey: 'test.1',
+              body: {
+                test: 1
+              }
+            })
+            setTimeout(next, 50)
+          }
+        ],
+        err => {
+          if (err) {
+            return done(err)
+          }
+          should.not.exist(message)
+          done()
+        }
+      )
+    })
+
     it.skip('[MANUAL] connection closed by admin gui', function (done) {
       this.timeout(0)
       var messages = new EventArray()

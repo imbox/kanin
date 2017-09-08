@@ -24,6 +24,7 @@ function Kanin (opts) {
   })
 
   this._consumers = []
+  this._replyConsumerTag = null
   this._publishQueue = []
   this._requestQueue = []
   this._publishedRequests = []
@@ -50,13 +51,14 @@ inherits(Kanin, events.EventEmitter)
 Kanin.prototype.configure = function (cb) {
   var self = this
 
-  this.topology.configure((err, {connection, channel}) => {
+  this.topology.configure((err, {connection, channel, replyConsumerTag}) => {
     if (err) {
       return cb(err)
     }
 
     self.connection = connection
     self.channel = channel
+    self._replyConsumerTag = replyConsumerTag
 
     self.connection.on('error', err => {
       self._onConnectionError(err)
@@ -118,6 +120,36 @@ Kanin.prototype.handle = function ({queue, options, onMessage}, cb) {
     self._consumers.push({queue, options, onMessage})
     cb()
   })
+}
+
+Kanin.prototype.unsubscribeAll = function (cb) {
+  var self = this
+  var tags = this._consumers.map(c => c.options.consumerTag)
+
+  if (this._replyConsumerTag) {
+    tags.push(this._replyConsumerTag)
+  }
+
+  async.forEach(
+    tags,
+    (tag, next) => {
+      self.channel.cancel(tag, err => {
+        if (err) {
+          return next(err)
+        }
+        if (tag === this._replyConsumerTag) {
+          self._replyConsumerTag = null
+        } else {
+          var idx = self._consumers.findIndex(
+            c => c.options.consumerTag === tag
+          )
+          self._consumers.splice(idx, 1)
+        }
+        next()
+      })
+    },
+    cb
+  )
 }
 
 Kanin.prototype.publish = function (exchange, message) {
@@ -207,9 +239,9 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
     queueName,
     wrappedMessageHandler,
     {
-      noAck: false,
-      exclusive: false,
-      arguments: null
+      noAck: options.noAck || false,
+      exclusive: options.exclusive || false,
+      arguments: options.arguments || null
     },
     (err, ok) => {
       if (err) return cb(err)
@@ -379,7 +411,7 @@ Kanin.prototype._onConnectionClosed = function (err) {
 
   var isIntentionalClose = this._closed
   if (isIntentionalClose) {
-    self.emit('connection.closed')
+    this.emit('connection.closed')
   } else {
     this.emit('connection.failed', err)
     this._reconnect()
