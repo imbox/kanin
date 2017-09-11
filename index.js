@@ -239,9 +239,9 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
     queueName,
     wrappedMessageHandler,
     {
-      noAck: options.noAck || false,
-      exclusive: options.exclusive || false,
-      arguments: options.arguments || null
+      noAck: setDefault(options.noAck, false),
+      exclusive: setDefault(options.exclusive, false),
+      arguments: setDefault(options.arguments, null)
     },
     (err, ok) => {
       if (err) return cb(err)
@@ -421,4 +421,8 @@ Kanin.prototype._onConnectionClosed = function (err) {
 Kanin.prototype._onChannelError = function (err) {
   this.channel = null
   this.emit('channel.error', err)
+}
+
+function setDefault (x, val) {
+  return x === undefined ? val : null
 }
