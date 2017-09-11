@@ -424,5 +424,5 @@ Kanin.prototype._onChannelError = function (err) {
 }
 
 function setDefault (x, val) {
-  return x === undefined ? val : null
+  return x !== undefined ? x : val
 }
