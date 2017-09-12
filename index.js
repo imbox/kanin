@@ -200,6 +200,7 @@ Kanin.prototype.request = function (exchange, message, cb) {
 
   this._publish(exchange, {
     correlationId,
+    messageId: correlationId, // for backwards compatibility with Rabbot
     replyTo: replyQueue.name,
     body: message.body,
     routingKey: message.routingKey
