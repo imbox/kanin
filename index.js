@@ -214,6 +214,7 @@ Kanin.prototype._publish = function (exchange, message) {
   this.channel.publish(exchange, message.routingKey, Buffer.from(json), {
     contentEncoding: 'utf8',
     contentType: 'application/json',
+    messageId: message.messageId,
     correlationId: message.correlationId,
     expiration: message.expiration,
     replyTo: message.replyTo
@@ -375,7 +376,9 @@ Kanin.prototype._reply = function (message, body) {
 Kanin.prototype._onReply = function (message) {
   var correlationId = message.properties.correlationId
   if (!correlationId) {
-    return console.error('received response without message sent!')
+    return console.error(
+      `received reply without correlationId! ${JSON.stringify(message)}`
+    )
   }
 
   var idx = this._publishedRequests.findIndex(
