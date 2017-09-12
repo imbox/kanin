@@ -68,6 +68,10 @@ Kanin.prototype.configure = function (cb) {
       self._onConnectionClosed(err)
     })
 
+    self.channel.on('error', err => {
+      self._onChannelError(err)
+    })
+
     // Internal events
     self.channel.on('consumer.cancelled', queueName => {
       async.series(
@@ -226,7 +230,9 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
     msg.reject = self._reject.bind(self, msg)
     msg.reply = self._reply.bind(self, msg)
 
-    onMessage(msg)
+    // Hinder unhandled errors in `onMessage` to bubble up as channel errors
+    // and cause unnecessary reconnections.
+    process.nextTick(() => onMessage(msg))
   }
 
   var global = false
@@ -412,6 +418,12 @@ Kanin.prototype._onConnectionClosed = function (err) {
     this.emit('connection.failed', err)
     this._reconnect()
   }
+}
+
+Kanin.prototype._onChannelError = function (err) {
+  this.channel && this.channel.removeAllListeners()
+  this.channel = null
+  this.emit('channel.error', err)
 }
 
 function setDefault (x, val) {
