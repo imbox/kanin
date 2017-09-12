@@ -232,7 +232,13 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
 
     // Hinder unhandled errors in `onMessage` to bubble up as channel errors
     // and cause unnecessary reconnections.
-    process.nextTick(() => onMessage(msg))
+    try {
+      onMessage(msg)
+    } catch (err) {
+      process.nextTick(() => {
+        throw err
+      })
+    }
   }
 
   var global = false
