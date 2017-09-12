@@ -68,10 +68,6 @@ Kanin.prototype.configure = function (cb) {
       self._onConnectionClosed(err)
     })
 
-    self.channel.on('error', err => {
-      self._onChannelError(err)
-    })
-
     // Internal events
     self.channel.on('consumer.cancelled', queueName => {
       async.series(
@@ -394,8 +390,8 @@ Kanin.prototype._handleBackLog = function () {
 
 Kanin.prototype._onConnectionError = function (err) {
   var self = this
-  this.connection.removeAllListeners()
-  this.channel.removeAllListeners()
+  this.connection && this.connection.removeAllListeners()
+  this.channel && this.channel.removeAllListeners()
   this.connection = null
   this.channel = null
 
@@ -404,8 +400,8 @@ Kanin.prototype._onConnectionError = function (err) {
 }
 
 Kanin.prototype._onConnectionClosed = function (err) {
-  this.connection.removeAllListeners()
-  this.channel.removeAllListeners()
+  this.connection && this.connection.removeAllListeners()
+  this.channel && this.channel.removeAllListeners()
   this.connection = null
   this.channel = null
 
@@ -416,11 +412,6 @@ Kanin.prototype._onConnectionClosed = function (err) {
     this.emit('connection.failed', err)
     this._reconnect()
   }
-}
-
-Kanin.prototype._onChannelError = function (err) {
-  this.channel = null
-  this.emit('channel.error', err)
 }
 
 function setDefault (x, val) {
