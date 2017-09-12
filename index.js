@@ -123,6 +123,12 @@ Kanin.prototype.handle = function ({queue, options, onMessage}, cb) {
 }
 
 Kanin.prototype.unsubscribeAll = function (cb) {
+  if (!this.channel) {
+    this._replyConsumerTag = null
+    this._consumers.splice(0, this._consumers.length)
+    return cb()
+  }
+
   var self = this
   var tags = this._consumers.map(c => c.options.consumerTag)
 
@@ -153,7 +159,7 @@ Kanin.prototype.unsubscribeAll = function (cb) {
 }
 
 Kanin.prototype.publish = function (exchange, message) {
-  if (this.connection) {
+  if (this.connection && this.channel) {
     this._publish(exchange, message)
   } else {
     this._publishQueue.push({exchange, message})
@@ -182,8 +188,9 @@ Kanin.prototype.request = function (exchange, message, cb) {
     )
 
     if (idx === -1) {
-      console.error('sent request not found, has it already been removed?')
-      return
+      return console.error(
+        'sent request not found, has it already been removed?'
+      )
     }
 
     var req = self._publishedRequests[idx]
@@ -331,7 +338,9 @@ Kanin.prototype._reply = function (message, body) {
   if (!correlationId) {
     return this.emit(
       'error',
-      new Error('cannot reply to message without correlationId')
+      new Error(
+        `cannot reply to message without correlationId: ${JSON.stringify(message)}`
+      )
     )
   }
 
@@ -339,7 +348,9 @@ Kanin.prototype._reply = function (message, body) {
   if (!replyTo) {
     return this.emit(
       'error',
-      new Error('cannot reply to message without replyTo')
+      new Error(
+        `cannot reply to message without replyTo: ${JSON.stringify(message)}`
+      )
     )
   }
 
@@ -363,14 +374,14 @@ Kanin.prototype._reply = function (message, body) {
 Kanin.prototype._onReply = function (message) {
   var correlationId = message.properties.correlationId
   if (!correlationId) {
-    console.error('received response without message sent!')
+    return console.error('received response without message sent!')
   }
 
   var idx = this._publishedRequests.findIndex(
     r => r.correlationId === correlationId
   )
   if (idx === -1) {
-    console.error('didnt find matching request!')
+    return console.error('didnt find matching request!')
   }
 
   var req = this._publishedRequests[idx]
