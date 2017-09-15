@@ -385,7 +385,8 @@ Kanin.prototype._onReply = function (message) {
     r => r.correlationId === correlationId
   )
   if (idx === -1) {
-    return console.error('didnt find matching request!')
+    console.error(`reply without matching request ${JSON.stringify(message)}`)
+    return this._reject(message)
   }
 
   var req = this._publishedRequests[idx]
