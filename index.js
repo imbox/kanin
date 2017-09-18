@@ -200,9 +200,9 @@ Kanin.prototype.request = function (exchange, message, cb) {
 
   this._publish(exchange, {
     correlationId,
+    body: message.body,
     messageId: correlationId, // for backwards compatibility with Rabbot
     replyTo: replyQueue.name,
-    body: message.body,
     routingKey: message.routingKey
   })
   this._publishedRequests.push({correlationId, callback: cb, timeoutHandle})
@@ -214,9 +214,10 @@ Kanin.prototype._publish = function (exchange, message) {
   this.channel.publish(exchange, message.routingKey, Buffer.from(json), {
     contentEncoding: 'utf8',
     contentType: 'application/json',
-    messageId: message.messageId,
     correlationId: message.correlationId,
     expiration: message.expiration,
+    headers: message.headers,
+    messageId: message.messageId,
     replyTo: message.replyTo
   })
 }
