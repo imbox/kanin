@@ -402,7 +402,7 @@ Kanin.prototype._onReply = function (message) {
   message.nack = this._nack.bind(this, message)
   message.reject = this._reject.bind(this, message)
 
-  req.callback(null, message)
+  process.nextTick(req.callback, null, message)
 }
 
 Kanin.prototype._handleBackLog = function () {
