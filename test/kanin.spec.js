@@ -643,4 +643,160 @@ describe('Kanin', function () {
       }
     )
   })
+
+  describe('rpc without ack', function () {
+    var requester
+    var responder
+
+    beforeEach(function (done) {
+      var queueId = uuid().slice(0, 8)
+      requester = new Kanin({
+        topology: {
+          connection: baseTopology.connection,
+          exchanges: [
+            {
+              name: 'requests-exchange',
+              type: 'topic',
+              autoDelete: true
+            }
+          ],
+
+          replyQueue: {
+            name: `test-${queueId}-response-queue`,
+            exclusive: true,
+            noAck: true
+          }
+        }
+      })
+
+      responder = new Kanin({
+        topology: {
+          connection: baseTopology.connection,
+          exchanges: [
+            {
+              name: 'requests-exchange',
+              type: 'topic',
+              autoDelete: true
+            }
+          ],
+          queues: [
+            {
+              name: 'test-requests-queue',
+              limit: 10
+            }
+          ],
+          bindings: [
+            {
+              exchange: 'requests-exchange',
+              target: 'test-requests-queue',
+              keys: ['test.request']
+            }
+          ]
+        }
+      })
+
+      async.series(
+        [next => responder.configure(next), next => requester.configure(next)],
+        done
+      )
+    })
+
+    afterEach(function (done) {
+      async.series(
+        [
+          next => requester.close(next),
+          next => responder.close(next),
+          next => purgeQueues(requester, next),
+          next => purgeQueues(responder, next)
+        ],
+        done
+      )
+    })
+
+    it('does not crash', function (done) {
+      var messages = []
+      function onRequest (message) {
+        messages.push(message)
+        message.reply({
+          statusCode: 200,
+          message: 'OK',
+          data: {}
+        })
+        message.ack()
+      }
+
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: {prefetch: 5},
+                onMessage: onRequest
+              },
+              next
+            )
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 30000,
+                body: {
+                  text: 'a request'
+                }
+              },
+              (err, response) => {
+                if (err) {
+                  return next(err)
+                }
+                messages.push(response)
+                next()
+              }
+            )
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 30000,
+                body: {
+                  text: 'second request'
+                }
+              },
+              (err, response) => {
+                if (err) {
+                  return next(err)
+                }
+                messages.push(response)
+                next()
+              }
+            )
+          }
+        ],
+        err => {
+          if (err) return done(err)
+
+          messages.map(m => m.body).should.deepEqual([
+            {text: 'a request'},
+            {
+              statusCode: 200,
+              message: 'OK',
+              data: {}
+            },
+            {text: 'second request'},
+            {
+              statusCode: 200,
+              message: 'OK',
+              data: {}
+            }
+          ])
+          messages.length.should.equal(4)
+          done()
+        }
+      )
+    })
+  })
 })
