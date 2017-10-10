@@ -195,6 +195,11 @@ Kanin.prototype.request = function (exchange, message, cb) {
 
     var req = self._publishedRequests[idx]
     self._publishedRequests.splice(idx, 1)
+
+    if (!req.callback) {
+      return console.error('no callback found for request: ', req)
+    }
+
     process.nextTick(req.callback, new Error('request timeout'))
   }, message.timeout || this._defaultRequestTimeout)
 
