@@ -174,6 +174,10 @@ Kanin.prototype.request = function (exchange, message, cb) {
     return cb(new Error('no reply queue has been configured!'))
   }
 
+  if (!cb) {
+    throw new Error('callback missing!')
+  }
+
   // The request timeout will be wrong for requests which haven't been
   // sent due to lost connections. Depending on the reconnect time, the
   // request timeout will effectively be longer than planned.
