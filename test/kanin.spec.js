@@ -663,7 +663,9 @@ describe('Kanin', function () {
 
           replyQueue: {
             name: `test-${queueId}-response-queue`,
-            exclusive: true,
+            durable: true,
+            autoDelete: false,
+            exclusive: false,
             noAck: true
           }
         }
@@ -794,6 +796,143 @@ describe('Kanin', function () {
             }
           ])
           messages.length.should.equal(4)
+          done()
+        }
+      )
+    })
+
+    it('unrecognized request response', function (done) {
+      var messages = []
+      function onRequest (message) {
+        messages.push(message)
+
+        let prevCorrelationId = message.properties.correlationId
+        let prevMessageId = message.properties.messageId
+
+        message.properties.correlationId = 'spoofed'
+        message.properties.messageId = 'spoofed'
+        message.reply({
+          statusCode: 200,
+          message: 'OK',
+          data: {}
+        })
+
+        message.properties.correlationId = prevCorrelationId
+        message.properties.messageId = prevMessageId
+        message.ack()
+      }
+
+      let requestError
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: {prefetch: 5},
+                onMessage: onRequest
+              },
+              next
+            )
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 500,
+                body: {
+                  text: 'a request'
+                }
+              },
+              err => {
+                requestError = err
+                next()
+              }
+            )
+          }
+        ],
+        err => {
+          if (err) return done(err)
+
+          messages.map(m => m.body).should.deepEqual([{text: 'a request'}])
+          messages.length.should.equal(1)
+          requestError.should.deepEqual(new Error('request timeout'))
+          done()
+        }
+      )
+    })
+
+    it('ack in noAck queue', function (done) {
+      var messages = []
+      function onRequest (message) {
+        messages.push(message)
+        message.reply({
+          statusCode: 200,
+          message: 'OK',
+          data: {}
+        })
+        message.ack()
+      }
+
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: {prefetch: 5},
+                onMessage: onRequest
+              },
+              next
+            )
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 500,
+                body: {
+                  text: 'a request'
+                }
+              },
+              (err, response) => {
+                if (err) {
+                  return next(err)
+                }
+                response.ack()
+                next()
+              }
+            )
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 500,
+                body: {
+                  text: 'second request'
+                }
+              },
+              (err, response) => {
+                if (err) {
+                  return next(err)
+                }
+                response.ack()
+                next()
+              }
+            )
+          }
+        ],
+        err => {
+          if (err) return done(err)
+
+          messages
+            .map(m => m.body)
+            .should.deepEqual([{text: 'a request'}, {text: 'second request'}])
+          messages.length.should.equal(2)
           done()
         }
       )

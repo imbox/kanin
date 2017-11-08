@@ -234,6 +234,7 @@ Kanin.prototype._publish = function (exchange, message) {
 Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
   var self = this
   var count = options.prefetch || 0
+  var queue = this.topology.queues.find(q => q.name === queueName)
 
   var wrappedMessageHandler = msg => {
     if (!msg) {
@@ -244,9 +245,15 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
       msg.body = JSON.parse(msg.content)
     }
 
-    msg.ack = self._ack.bind(self, msg)
-    msg.nack = self._nack.bind(self, msg)
-    msg.reject = self._reject.bind(self, msg)
+    if (queue.noAck === true) {
+      msg.ack = noop
+      msg.nack = noop
+      msg.reject = noop
+    } else {
+      msg.ack = self._ack.bind(self, msg)
+      msg.nack = self._nack.bind(self, msg)
+      msg.reject = self._reject.bind(self, msg)
+    }
     msg.reply = self._reply.bind(self, msg)
 
     // Hinder unhandled errors in `onMessage` to bubble up as channel errors
@@ -384,6 +391,16 @@ Kanin.prototype._reply = function (message, body) {
 }
 
 Kanin.prototype._onReply = function (message) {
+  if (this.topology.replyQueue.noAck) {
+    message.ack = noop
+    message.nack = noop
+    message.reject = noop
+  } else {
+    message.ack = this._ack.bind(this, message)
+    message.nack = this._nack.bind(this, message)
+    message.reject = this._reject.bind(this, message)
+  }
+
   var correlationId = message.properties.correlationId
   if (!correlationId) {
     return console.error(
@@ -396,7 +413,7 @@ Kanin.prototype._onReply = function (message) {
   )
   if (idx === -1) {
     console.error(`reply without matching request ${JSON.stringify(message)}`)
-    return this._reject(message)
+    return message.reject()
   }
 
   var req = this._publishedRequests[idx]
@@ -406,10 +423,6 @@ Kanin.prototype._onReply = function (message) {
   if (message.properties.contentType === 'application/json') {
     message.body = JSON.parse(message.content)
   }
-
-  message.ack = this._ack.bind(this, message)
-  message.nack = this._nack.bind(this, message)
-  message.reject = this._reject.bind(this, message)
 
   process.nextTick(req.callback, null, message)
 }
@@ -453,6 +466,7 @@ Kanin.prototype._onConnectionClosed = function (err) {
 }
 
 Kanin.prototype._onChannelError = function (err) {
+  console.log('error: ', err)
   this.channel && this.channel.removeAllListeners()
   this.channel = null
   this.emit('channel.error', err)
@@ -461,3 +475,5 @@ Kanin.prototype._onChannelError = function (err) {
 function setDefault (x, val) {
   return x !== undefined ? x : val
 }
+
+function noop () {}
