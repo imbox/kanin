@@ -260,8 +260,8 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
     }
   }
 
-  var global = false
-  this.channel.prefetch(count, global)
+  var isGlobal = false
+  this.channel.prefetch(count, isGlobal)
   this.channel.consume(
     queueName,
     wrappedMessageHandler,
