@@ -114,11 +114,11 @@ Kanin.prototype.handle = function ({queue, options, onMessage}, cb) {
 
   this._createConsumer(queue, options, onMessage, (err, consumerTag) => {
     if (err) {
-      return cb(err)
+      return process.nextTick(cb, err)
     }
     options.consumerTag = consumerTag
     self._consumers.push({queue, options, onMessage})
-    cb()
+    process.nextTick(cb, null)
   })
 }
 
