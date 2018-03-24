@@ -1,6 +1,6 @@
 {
   "name": "kanin",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "RabbitMQ client",
   "main": "index.js",
   "scripts": {
