@@ -126,7 +126,7 @@ Kanin.prototype.unsubscribeAll = function (cb) {
   if (!this.channel) {
     this._replyConsumerTag = null
     this._consumers.splice(0, this._consumers.length)
-    return cb()
+    return process.nextTick(cb, null)
   }
 
   var self = this
@@ -171,7 +171,7 @@ Kanin.prototype.request = function (exchange, message, cb) {
   var replyQueue = this.topology.replyQueue
 
   if (!replyQueue) {
-    return cb(new Error('no reply queue has been configured!'))
+    return process.nextTick(cb, new Error('no reply queue has been configured!'))
   }
 
   if (!cb) {
