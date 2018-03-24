@@ -1,6 +1,6 @@
 {
   "name": "kanin",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "repository": "git://github.com/imbox/kanin",
   "description": "RabbitMQ client",
   "keywords": [
