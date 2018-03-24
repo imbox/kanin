@@ -1,7 +1,12 @@
 {
   "name": "kanin",
   "version": "1.0.15",
+  "repository": "git://github.com/imbox/kanin",
   "description": "RabbitMQ client",
+  "keywords": [
+    "rabbitmq",
+    "amqp"
+  ],
   "main": "index.js",
   "scripts": {
     "test": "npm run test:setup && npm run test:run; npm run test:teardown",
@@ -9,7 +14,7 @@
     "test:teardown": "./test/teardown.sh",
     "test:run": "mocha ./test/*.spec.js"
   },
-  "author": "",
+  "author": "Mathias Lundell",
   "license": "ISC",
   "dependencies": {
     "amqplib": "^0.5.1",
