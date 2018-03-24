@@ -1,7 +1,7 @@
 var assert = require('assert')
 var async = require('async')
 var events = require('events')
-var inherits = require('inherits')
+var util = require('util')
 var uuid = require('uuid/v4')
 
 var Topology = require('./lib/topology')
@@ -46,7 +46,7 @@ function Kanin (opts) {
   }
 }
 
-inherits(Kanin, events.EventEmitter)
+util.inherits(Kanin, events.EventEmitter)
 
 Kanin.prototype.configure = function (cb) {
   var self = this
