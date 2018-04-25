@@ -51,7 +51,7 @@ util.inherits(Kanin, events.EventEmitter)
 Kanin.prototype.configure = function (cb) {
   var self = this
 
-  this.topology.configure((err, {connection, channel, replyConsumerTag}) => {
+  this.topology.configure((err, { connection, channel, replyConsumerTag }) => {
     if (err) {
       return cb(err)
     }
@@ -78,7 +78,7 @@ Kanin.prototype.configure = function (cb) {
         [
           next => self.topology.recreateQueue(channel, queueName, next),
           next => {
-            var {queue, options, onMessage} = self._consumers.find(
+            var { queue, options, onMessage } = self._consumers.find(
               c => c.queue === queueName
             )
             self._createConsumer(queue, options, onMessage, next)
@@ -106,7 +106,7 @@ Kanin.prototype.close = function (cb) {
   this.connection = null
 }
 
-Kanin.prototype.handle = function ({queue, options, onMessage}, cb) {
+Kanin.prototype.handle = function ({ queue, options, onMessage }, cb) {
   var self = this
   if (!options) {
     options = {}
@@ -117,7 +117,7 @@ Kanin.prototype.handle = function ({queue, options, onMessage}, cb) {
       return process.nextTick(cb, err)
     }
     options.consumerTag = consumerTag
-    self._consumers.push({queue, options, onMessage})
+    self._consumers.push({ queue, options, onMessage })
     process.nextTick(cb, null)
   })
 }
@@ -162,7 +162,7 @@ Kanin.prototype.publish = function (exchange, message) {
   if (this.connection && this.channel) {
     this._publish(exchange, message)
   } else {
-    this._publishQueue.push({exchange, message})
+    this._publishQueue.push({ exchange, message })
   }
 }
 
@@ -171,7 +171,10 @@ Kanin.prototype.request = function (exchange, message, cb) {
   var replyQueue = this.topology.replyQueue
 
   if (!replyQueue) {
-    return process.nextTick(cb, new Error('no reply queue has been configured!'))
+    return process.nextTick(
+      cb,
+      new Error('no reply queue has been configured!')
+    )
   }
 
   if (!cb) {
@@ -182,7 +185,7 @@ Kanin.prototype.request = function (exchange, message, cb) {
   // sent due to lost connections. Depending on the reconnect time, the
   // request timeout will effectively be longer than planned.
   if (!this.connection) {
-    return this._requestQueue.push({exchange, message, callback: cb})
+    return this._requestQueue.push({ exchange, message, callback: cb })
   }
 
   var correlationId = uuid()
@@ -214,7 +217,7 @@ Kanin.prototype.request = function (exchange, message, cb) {
     replyTo: replyQueue.name,
     routingKey: message.routingKey
   })
-  this._publishedRequests.push({correlationId, callback: cb, timeoutHandle})
+  this._publishedRequests.push({ correlationId, callback: cb, timeoutHandle })
 }
 
 Kanin.prototype._publish = function (exchange, message) {
@@ -358,7 +361,9 @@ Kanin.prototype._reply = function (message, body) {
     return this.emit(
       'error',
       new Error(
-        `cannot reply to message without correlationId: ${JSON.stringify(message)}`
+        `cannot reply to message without correlationId: ${JSON.stringify(
+          message
+        )}`
       )
     )
   }
@@ -430,11 +435,11 @@ Kanin.prototype._onReply = function (message) {
 Kanin.prototype._handleBackLog = function () {
   var self = this
 
-  this._publishQueue.forEach(({exchange, message}) => {
+  this._publishQueue.forEach(({ exchange, message }) => {
     self.publish(exchange, message)
   })
 
-  this._requestQueue.forEach(({exchange, message, callback}) => {
+  this._requestQueue.forEach(({ exchange, message, callback }) => {
     self.request(exchange, message, callback)
   })
 }
