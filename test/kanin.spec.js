@@ -114,7 +114,7 @@ describe('Kanin', function () {
     var mq
 
     beforeEach(function (done) {
-      mq = new Kanin({topology: baseTopology})
+      mq = new Kanin({ topology: baseTopology })
       done()
     })
 
@@ -144,7 +144,7 @@ describe('Kanin', function () {
         [
           next => mq.configure(next),
           next => {
-            mq.handle({queue: 'test-queue', onMessage: onMessage}, next)
+            mq.handle({ queue: 'test-queue', onMessage: onMessage }, next)
           },
           next => {
             mq.publish('test-exchange', {
@@ -159,7 +159,7 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({key: 1})
+          messages.data[0].body.should.deepEqual({ key: 1 })
           done()
         }
       )
@@ -185,7 +185,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue',
-                options: {prefetch: 10},
+                options: { prefetch: 10 },
                 onMessage: onMessage
               },
               next
@@ -247,7 +247,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: onMessage1
               },
               next
@@ -257,7 +257,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue2',
-                options: {prefetch: 2},
+                options: { prefetch: 2 },
                 onMessage: onMessage2
               },
               next
@@ -301,7 +301,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue',
-                options: {prefetch: 1},
+                options: { prefetch: 1 },
                 onMessage: msg => {
                   msg.ack()
                   messages.push(msg)
@@ -330,7 +330,7 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({test: 1})
+          messages.data[0].body.should.deepEqual({ test: 1 })
           messages.data.length.should.equal(1)
           done()
         }
@@ -347,7 +347,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue',
-                options: {prefetch: 1},
+                options: { prefetch: 1 },
                 onMessage: msg => {
                   msg.ack()
                   message = msg
@@ -387,7 +387,7 @@ describe('Kanin', function () {
             mq.handle(
               {
                 queue: 'test-queue',
-                options: {prefetch: 1},
+                options: { prefetch: 1 },
                 onMessage: msg => {
                   msg.ack()
                   messages.push(msg)
@@ -415,7 +415,7 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({test: 1})
+          messages.data[0].body.should.deepEqual({ test: 1 })
           messages.data.length.should.equal(1)
           done()
         }
@@ -510,7 +510,7 @@ describe('Kanin', function () {
             responder.handle(
               {
                 queue: 'test-requests-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: onRequest
               },
               next
@@ -540,7 +540,7 @@ describe('Kanin', function () {
           if (err) return done(err)
 
           messages.map(m => m.body).should.deepEqual([
-            {text: 'a request'},
+            { text: 'a request' },
             {
               statusCode: 200,
               message: 'OK',
@@ -563,7 +563,7 @@ describe('Kanin', function () {
             responder.handle(
               {
                 queue: 'test-requests-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: msg => msg.ack()
               },
               next
@@ -601,47 +601,44 @@ describe('Kanin', function () {
       )
     })
 
-    it.skip(
-      '[MANUAL] delete queues and connections and look for strange behaviour',
-      function (done) {
-        this.timeout(0)
-        async.series(
-          [
-            next => {
-              responder.handle(
-                {
-                  queue: 'test-requests-queue',
-                  options: {prefetch: 5},
-                  onMessage: msg => msg.ack()
-                },
-                next
-              )
-            },
-            next => {
-              requester.request(
-                'requests-exchange',
-                {
-                  routingKey: 'test.request',
-                  timeout: 50,
-                  body: {
-                    text: 'a request'
-                  }
-                },
-                () => next()
-              )
-            }
-          ],
-          err => {
-            if (err) return done(err)
-
-            console.log(
-              'Close connections and delete queues, etc. Everything should be recreated'
+    it.skip('[MANUAL] delete queues and connections and look for strange behaviour', function (done) {
+      this.timeout(0)
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: { prefetch: 5 },
+                onMessage: msg => msg.ack()
+              },
+              next
             )
-            console.log('you must manually stop test with CTRL-C')
+          },
+          next => {
+            requester.request(
+              'requests-exchange',
+              {
+                routingKey: 'test.request',
+                timeout: 50,
+                body: {
+                  text: 'a request'
+                }
+              },
+              () => next()
+            )
           }
-        )
-      }
-    )
+        ],
+        err => {
+          if (err) return done(err)
+
+          console.log(
+            'Close connections and delete queues, etc. Everything should be recreated'
+          )
+          console.log('you must manually stop test with CTRL-C')
+        }
+      )
+    })
   })
 
   describe('rpc without ack', function () {
@@ -733,7 +730,7 @@ describe('Kanin', function () {
             responder.handle(
               {
                 queue: 'test-requests-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: onRequest
               },
               next
@@ -782,13 +779,13 @@ describe('Kanin', function () {
           if (err) return done(err)
 
           messages.map(m => m.body).should.deepEqual([
-            {text: 'a request'},
+            { text: 'a request' },
             {
               statusCode: 200,
               message: 'OK',
               data: {}
             },
-            {text: 'second request'},
+            { text: 'second request' },
             {
               statusCode: 200,
               message: 'OK',
@@ -829,7 +826,7 @@ describe('Kanin', function () {
             responder.handle(
               {
                 queue: 'test-requests-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: onRequest
               },
               next
@@ -855,7 +852,7 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.map(m => m.body).should.deepEqual([{text: 'a request'}])
+          messages.map(m => m.body).should.deepEqual([{ text: 'a request' }])
           messages.length.should.equal(1)
           requestError.should.deepEqual(new Error('request timeout'))
           done()
@@ -881,7 +878,7 @@ describe('Kanin', function () {
             responder.handle(
               {
                 queue: 'test-requests-queue',
-                options: {prefetch: 5},
+                options: { prefetch: 5 },
                 onMessage: onRequest
               },
               next
@@ -931,7 +928,10 @@ describe('Kanin', function () {
 
           messages
             .map(m => m.body)
-            .should.deepEqual([{text: 'a request'}, {text: 'second request'}])
+            .should.deepEqual([
+              { text: 'a request' },
+              { text: 'second request' }
+            ])
           messages.length.should.equal(2)
           done()
         }
