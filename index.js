@@ -474,7 +474,6 @@ Kanin.prototype._onChannelError = function (err) {
   this.channel && this.channel.removeAllListeners()
   this.channel = null
   this.emit('channel.error', err)
-  this._reconnect()
 }
 
 function setDefault (x, val) {
