@@ -236,8 +236,16 @@ Kanin.prototype._publish = function (exchange, message) {
 
 Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
   var self = this
-  var count = options.prefetch || 0
+  var opts = {
+    prefetch: setDefault(options.prefetch, 5),
+    noAck: setDefault(options.noAck, false),
+    exclusive: setDefault(options.exclusive, false),
+    arguments: setDefault(options.arguments, null)
+  }
   var queue = this.topology.queues.find(q => q.name === queueName)
+  if (!queue) {
+    return cb(new Error(queueName + ' not found in topology'))
+  }
 
   var wrappedMessageHandler = msg => {
     if (!msg) {
@@ -248,7 +256,7 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
       msg.body = JSON.parse(msg.content)
     }
 
-    if (queue.noAck === true) {
+    if (opts.noAck === true) {
       msg.ack = noop
       msg.nack = noop
       msg.reject = noop
@@ -271,14 +279,14 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
   }
 
   var isGlobal = false
-  this.channel.prefetch(count, isGlobal)
+  this.channel.prefetch(opts.prefetch, isGlobal)
   this.channel.consume(
     queueName,
     wrappedMessageHandler,
     {
-      noAck: setDefault(options.noAck, false),
-      exclusive: setDefault(options.exclusive, false),
-      arguments: setDefault(options.arguments, null)
+      noAck: opts.noAck,
+      exclusive: opts.exclusive,
+      arguments: opts.arguments
     },
     (err, ok) => {
       if (err) return cb(err)
