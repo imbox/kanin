@@ -1,6 +1,7 @@
 var assert = require('assert')
 var async = require('async')
 var events = require('events')
+var safeStringify = require('fast-safe-stringify')
 var util = require('util')
 var uuid = require('uuid/v4')
 
@@ -369,7 +370,7 @@ Kanin.prototype._reply = function (message, body) {
     return this.emit(
       'error',
       new Error(
-        `cannot reply to message without correlationId: ${JSON.stringify(
+        `cannot reply to message without correlationId: ${safeStringify(
           message
         )}`
       )
@@ -381,7 +382,7 @@ Kanin.prototype._reply = function (message, body) {
     return this.emit(
       'error',
       new Error(
-        `cannot reply to message without replyTo: ${JSON.stringify(message)}`
+        `cannot reply to message without replyTo: ${safeStringify(message)}`
       )
     )
   }

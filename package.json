@@ -19,6 +19,7 @@
   "dependencies": {
     "amqplib": "^0.5.1",
     "async": "^2.5.0",
+    "fast-safe-stringify": "^2.0.4",
     "uuid": "^3.1.0"
   },
   "devDependencies": {
