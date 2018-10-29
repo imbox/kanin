@@ -222,11 +222,20 @@ Kanin.prototype.request = function (exchange, message, cb) {
 }
 
 Kanin.prototype._publish = function (exchange, message) {
-  var json = JSON.stringify(message.body)
+  var contentType = message.contentType || 'application/json'
+  var data
 
-  this.channel.publish(exchange, message.routingKey, Buffer.from(json), {
+  if (contentType === 'application/json') {
+    data = JSON.stringify(message.body)
+  } else if (contentType === 'text/plain') {
+    data = message.body
+  } else {
+    throw new Error('unrecognized contentType: ' + contentType)
+  }
+
+  this.channel.publish(exchange, message.routingKey, Buffer.from(data), {
     contentEncoding: 'utf8',
-    contentType: 'application/json',
+    contentType,
     correlationId: message.correlationId,
     expiration: message.expiration,
     headers: message.headers,
