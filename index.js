@@ -264,6 +264,8 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
 
     if (msg.properties.contentType === 'application/json') {
       msg.body = JSON.parse(msg.content)
+    } else if (msg.properties.contentType === 'text/plain') {
+      msg.body = msg.content.toString()
     }
 
     if (opts.noAck === true) {
