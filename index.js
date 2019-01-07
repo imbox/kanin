@@ -73,6 +73,10 @@ Kanin.prototype.configure = function (cb) {
       self._onChannelError(err)
     })
 
+    self.channel.on('drain', () => {
+      self._onDrainEvent()
+    })
+
     // Internal events
     self.channel.on('consumer.cancelled', queueName => {
       async.series(
@@ -504,6 +508,10 @@ Kanin.prototype._onChannelError = function (err) {
   this.channel = null
   this.emit('channel.error', err)
   this._reconnect()
+}
+
+Kanin.prototype._onDrainEvent = function () {
+  this.emit('channel.drain')
 }
 
 function setDefault (x, val) {
