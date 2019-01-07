@@ -161,9 +161,9 @@ Kanin.prototype.unsubscribeAll = function (cb) {
 
 Kanin.prototype.publish = function (exchange, message) {
   if (this.connection && this.channel) {
-    this._publish(exchange, message)
+    return this._publish(exchange, message)
   } else {
-    this._publishQueue.push({ exchange, message })
+    return this._publishQueue.push({ exchange, message })
   }
 }
 
@@ -211,14 +211,23 @@ Kanin.prototype.request = function (exchange, message, cb) {
     process.nextTick(req.callback, new Error('request timeout'))
   }, message.timeout || this._defaultRequestTimeout)
 
-  this._publish(exchange, {
+  var publishSuccess = this._publish(exchange, {
     correlationId,
     body: message.body,
     messageId: correlationId, // for backwards compatibility with Rabbot
     replyTo: replyQueue.name,
     routingKey: message.routingKey
   })
-  this._publishedRequests.push({ correlationId, callback: cb, timeoutHandle })
+  if (publishSuccess) {
+    this._publishedRequests.push({
+      correlationId,
+      callback: cb,
+      timeoutHandle
+    })
+    return true
+  } else {
+    return false
+  }
 }
 
 Kanin.prototype._publish = function (exchange, message) {
@@ -233,7 +242,7 @@ Kanin.prototype._publish = function (exchange, message) {
     throw new Error('unrecognized contentType: ' + contentType)
   }
 
-  this.channel.publish(exchange, message.routingKey, Buffer.from(data), {
+  return this.channel.publish(exchange, message.routingKey, Buffer.from(data), {
     contentEncoding: 'utf8',
     contentType,
     correlationId: message.correlationId,
