@@ -163,11 +163,18 @@ Kanin.prototype.unsubscribeAll = function (cb) {
   )
 }
 
-Kanin.prototype.publish = function (exchange, message) {
+Kanin.prototype.publish = function (exchange, message, callback) {
   if (this.connection && this.channel) {
-    return this._publish(exchange, message)
+    var publishSuccess = this._publish(exchange, message)
+    if (callback) {
+      if (publishSuccess) {
+        process.nextTick(callback)
+      } else {
+        process.nextTick(callback, new Error('saturated'))
+      }
+    }
   } else {
-    return this._publishQueue.push({ exchange, message })
+    this._publishQueue.push({ exchange, message, callback })
   }
 }
 
@@ -228,9 +235,9 @@ Kanin.prototype.request = function (exchange, message, cb) {
       callback: cb,
       timeoutHandle
     })
-    return true
   } else {
-    return false
+    clearTimeout(timeoutHandle)
+    process.nextTick(cb, new Error('saturated'))
   }
 }
 
@@ -468,8 +475,8 @@ Kanin.prototype._onReply = function (message) {
 Kanin.prototype._handleBackLog = function () {
   var self = this
 
-  this._publishQueue.forEach(({ exchange, message }) => {
-    self.publish(exchange, message)
+  this._publishQueue.forEach(({ exchange, message, callback }) => {
+    self.publish(exchange, message, callback)
   })
   this._publishQueue = []
 
