@@ -471,10 +471,12 @@ Kanin.prototype._handleBackLog = function () {
   this._publishQueue.forEach(({ exchange, message }) => {
     self.publish(exchange, message)
   })
+  this._publishQueue = []
 
   this._requestQueue.forEach(({ exchange, message, callback }) => {
     self.request(exchange, message, callback)
   })
+  this._requestQueue = []
 }
 
 Kanin.prototype._onConnectionError = function (err) {
