@@ -30,7 +30,7 @@ function Kanin (opts) {
   this._requestQueue = []
   this._publishedRequests = []
   this._closed = false
-  this._defaultRequestTimeout = 10000
+  this._defaultRequestTimeout = opts.requestTimeout || 10000
 
   // This section is used purely to simulate connection errors...
   var previousHost
