@@ -19,6 +19,7 @@ function Kanin (opts) {
   var self = this
   this.connection = null
   this.channel = null
+  this.isReady = false
   this.topology = new Topology({
     topology: opts.topology,
     onReply: this._onReply.bind(this)
@@ -26,11 +27,11 @@ function Kanin (opts) {
 
   this._consumers = []
   this._replyConsumerTag = null
-  this._publishQueue = []
-  this._requestQueue = []
+  this._sendQueue = []
   this._publishedRequests = []
   this._closed = false
   this._defaultRequestTimeout = opts.requestTimeout || 10000
+  this._publishTimeout = opts.publishTimeout || 5000
 
   // This section is used purely to simulate connection errors...
   var previousHost
@@ -57,11 +58,13 @@ Kanin.prototype.configure = function (cb) {
       return cb(err)
     }
 
+    self.isReady = true
     self.connection = connection
     self.channel = channel
     self._replyConsumerTag = replyConsumerTag
 
     self.connection.on('error', err => {
+      self.isReady = false
       self._onConnectionError(err)
     })
 
@@ -70,10 +73,14 @@ Kanin.prototype.configure = function (cb) {
     })
 
     self.channel.on('error', err => {
+      self.isReady = false
       self._onChannelError(err)
     })
 
     self.channel.on('drain', () => {
+      process.nextTick(() => {
+        self._handleBackLog(() => {})
+      })
       self._onDrainEvent()
     })
 
@@ -164,43 +171,87 @@ Kanin.prototype.unsubscribeAll = function (cb) {
 }
 
 Kanin.prototype.publish = function (exchange, message, callback) {
-  if (this.connection && this.channel) {
-    var publishSuccess = this._publish(exchange, message)
-    if (callback) {
-      if (publishSuccess) {
-        process.nextTick(callback)
-      } else {
-        process.nextTick(callback, new Error('saturated'))
-      }
-    }
+  var contentType = message.contentType || 'application/json'
+  var content
+  if (contentType === 'application/json') {
+    content = Buffer.from(JSON.stringify(message.body))
+  } else if (contentType === 'text/plain') {
+    content = Buffer.from(message.body)
   } else {
-    this._publishQueue.push({ exchange, message, callback })
+    return process.nextTick(
+      callback,
+      new Error('unrecognized contentType: ' + contentType)
+    )
+  }
+
+  var correlationId = uuid()
+  var options = {
+    contentEncoding: 'utf8',
+    contentType,
+    correlationId,
+    expiration: message.expiration,
+    headers: message.headers
+  }
+  var routingKey = message.routingKey
+
+  if (this.connection && this.channel && this.isReady) {
+    this.isReady = this.channel.publish(exchange, routingKey, content, options)
+    process.nextTick(callback)
+  } else {
+    var cb = once(callback)
+    setTimeout(() => {
+      cb(new Error('EPUBLISHTIMEOUT'))
+    }, message.timeout || this._publishTimeout)
+    this._sendQueue.push({
+      exchange,
+      routingKey,
+      content,
+      options,
+      callback: cb,
+      ttl: Date.now() + (message.timeout || this._publishTimeout)
+    })
   }
 }
 
-Kanin.prototype.request = function (exchange, message, cb) {
-  var self = this
-  var replyQueue = this.topology.replyQueue
+Kanin.prototype.request = function (exchange, message, callback) {
+  if (!callback) {
+    throw new Error('callback missing!')
+  }
 
+  var replyQueue = this.topology.replyQueue
   if (!replyQueue) {
     return process.nextTick(
-      cb,
+      callback,
       new Error('no reply queue has been configured!')
     )
   }
 
-  if (!cb) {
-    throw new Error('callback missing!')
-  }
-
-  // The request timeout will be wrong for requests which haven't been
-  // sent due to lost connections. Depending on the reconnect time, the
-  // request timeout will effectively be longer than planned.
-  if (!this.connection) {
-    return this._requestQueue.push({ exchange, message, callback: cb })
+  var contentType = message.contentType || 'application/json'
+  var content
+  if (contentType === 'application/json') {
+    content = Buffer.from(JSON.stringify(message.body))
+  } else if (contentType === 'text/plain') {
+    content = Buffer.from(message.body)
+  } else {
+    return process.nextTick(
+      callback,
+      new Error('unrecognized contentType: ' + contentType)
+    )
   }
 
   var correlationId = uuid()
+  var options = {
+    contentEncoding: 'utf8',
+    contentType,
+    correlationId,
+    expiration: message.expiration,
+    headers: message.headers,
+    messageId: correlationId, // For backwards compatibility with Rabbot
+    replyTo: replyQueue.name
+  }
+  var routingKey = message.routingKey
+
+  var self = this
   var timeoutHandle = setTimeout(() => {
     var idx = self._publishedRequests.findIndex(
       r => r.correlationId === correlationId
@@ -222,46 +273,77 @@ Kanin.prototype.request = function (exchange, message, cb) {
     process.nextTick(req.callback, new Error('request timeout'))
   }, message.timeout || this._defaultRequestTimeout)
 
-  var publishSuccess = this._publish(exchange, {
+  this._publishedRequests.push({
     correlationId,
-    body: message.body,
-    messageId: correlationId, // for backwards compatibility with Rabbot
-    replyTo: replyQueue.name,
-    routingKey: message.routingKey
+    callback,
+    timeoutHandle
   })
-  if (publishSuccess) {
-    this._publishedRequests.push({
-      correlationId,
-      callback: cb,
-      timeoutHandle
-    })
+
+  if (this.connection && this.channel && this.isReady) {
+    this.isReady = this.channel.publish(exchange, routingKey, content, options)
   } else {
-    clearTimeout(timeoutHandle)
-    process.nextTick(cb, new Error('saturated'))
+    this._sendQueue.push({
+      exchange,
+      routingKey,
+      content,
+      options,
+      callback: noop,
+      ttl: Date.now() + (message.timeout || this._defaultRequestTimeout)
+    })
   }
 }
 
-Kanin.prototype._publish = function (exchange, message) {
-  var contentType = message.contentType || 'application/json'
-  var data
-
-  if (contentType === 'application/json') {
-    data = JSON.stringify(message.body)
-  } else if (contentType === 'text/plain') {
-    data = message.body
-  } else {
-    throw new Error('unrecognized contentType: ' + contentType)
+Kanin.prototype.reply = function (message, body, callback) {
+  var correlationId = message.properties.correlationId
+  if (!correlationId) {
+    return process.nextTick(
+      callback,
+      new Error(
+        `cannot reply to message without correlationId: ${safeStringify(
+          message
+        )}`
+      )
+    )
   }
 
-  return this.channel.publish(exchange, message.routingKey, Buffer.from(data), {
+  var replyTo = message.properties.replyTo
+  if (!replyTo) {
+    return process.nextTick(
+      callback,
+      new Error(
+        `cannot reply to message without replyTo: ${safeStringify(message)}`
+      )
+    )
+  }
+
+  if (!body) {
+    return process.nextTick(callback, new Error('must provide response body'))
+  }
+
+  var content = Buffer.from(JSON.stringify(body))
+  var options = {
+    contentType: 'application/json',
     contentEncoding: 'utf8',
-    contentType,
-    correlationId: message.correlationId,
-    expiration: message.expiration,
-    headers: message.headers,
-    messageId: message.messageId,
-    replyTo: message.replyTo
-  })
+    correlationId
+  }
+
+  if (this.channel && this.isReady) {
+    this.isReady = this.channel.sendToQueue(replyTo, content, options)
+    process.nextTick(callback)
+  } else {
+    var cb = once(callback)
+    setTimeout(() => {
+      cb(new Error('EPUBLISHTIMEOUT'))
+    }, this._publishTimeout)
+    this._sendQueue.push({
+      replyTo,
+      content,
+      options,
+      type: 'reply',
+      callback: cb,
+      ttl: Date.now() + this._publishTimeout
+    })
+  }
 }
 
 Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
@@ -297,7 +379,7 @@ Kanin.prototype._createConsumer = function (queueName, options, onMessage, cb) {
       msg.nack = self._nack.bind(self, msg)
       msg.reject = self._reject.bind(self, msg)
     }
-    msg.reply = self._reply.bind(self, msg)
+    msg.reply = self.reply.bind(self, msg)
 
     // Hinder unhandled errors in `onMessage` to bubble up as channel errors
     // and cause unnecessary reconnections.
@@ -352,17 +434,16 @@ Kanin.prototype._reconnect = function () {
         return
       }
 
-      self._handleBackLog()
-      self._reconnectConsumers(err => {
-        if (err) {
-          self.emit('error', err)
-        }
+      self._handleBackLog(() => {
+        self._reconnectConsumers(err => {
+          if (err) {
+            self.emit('error', err)
+          }
+        })
       })
     }
   )
 }
-
-Kanin.prototype._reconnectConsumer = function (consumer, cb) {}
 
 Kanin.prototype._reconnectConsumers = function (cb) {
   var self = this
@@ -393,46 +474,6 @@ Kanin.prototype._nack = function (message) {
 Kanin.prototype._reject = function (message) {
   var requeue = false
   this.channel && this.channel.nack(message, allUpTo, requeue)
-}
-
-Kanin.prototype._reply = function (message, body) {
-  var correlationId = message.properties.correlationId
-  if (!correlationId) {
-    return this.emit(
-      'error',
-      new Error(
-        `cannot reply to message without correlationId: ${safeStringify(
-          message
-        )}`
-      )
-    )
-  }
-
-  var replyTo = message.properties.replyTo
-  if (!replyTo) {
-    return this.emit(
-      'error',
-      new Error(
-        `cannot reply to message without replyTo: ${safeStringify(message)}`
-      )
-    )
-  }
-
-  if (!body) {
-    return this.emit('error', new Error('must provide response body'))
-  }
-
-  // TODO: Save the response here?
-  if (!this.channel) {
-    return
-  }
-
-  var json = JSON.stringify(body)
-  this.channel.sendToQueue(replyTo, Buffer.from(json), {
-    contentType: 'application/json',
-    contentEncoding: 'utf8',
-    correlationId
-  })
 }
 
 Kanin.prototype._onReply = function (message) {
@@ -472,18 +513,46 @@ Kanin.prototype._onReply = function (message) {
   process.nextTick(req.callback, null, message)
 }
 
-Kanin.prototype._handleBackLog = function () {
+Kanin.prototype._handleBackLog = function (done) {
   var self = this
-
-  this._publishQueue.forEach(({ exchange, message, callback }) => {
-    self.publish(exchange, message, callback)
-  })
-  this._publishQueue = []
-
-  this._requestQueue.forEach(({ exchange, message, callback }) => {
-    self.request(exchange, message, callback)
-  })
-  this._requestQueue = []
+  var stillReady = true
+  async.whilst(
+    cb => {
+      cb(null, self._sendQueue.length > 0 && stillReady)
+    },
+    cb => {
+      const {
+        exchange,
+        content,
+        options,
+        routingKey,
+        replyTo,
+        type,
+        callback,
+        ttl
+      } = self._sendQueue.shift()
+      if (Date.now() > ttl) {
+        cb()
+      } else {
+        if (type === 'reply') {
+          stillReady = self.channel.sendToQueue(replyTo, content, options)
+        } else {
+          stillReady = self.channel.publish(
+            exchange,
+            routingKey,
+            content,
+            options
+          )
+        }
+        process.nextTick(callback)
+        cb()
+      }
+    },
+    () => {
+      this.isReady = stillReady
+      done()
+    }
+  )
 }
 
 Kanin.prototype._onConnectionError = function (err) {
@@ -528,3 +597,12 @@ function setDefault (x, val) {
 }
 
 function noop () {}
+
+function once (fn) {
+  var called = false
+  return (...args) => {
+    if (called) return
+    called = true
+    return fn(...args)
+  }
+}

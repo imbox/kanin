@@ -1,8 +1,8 @@
 /* eslint-env mocha */
 var amqp = require('amqplib/callback_api')
+var EventArray = require('event-array')
 var uuid = require('uuid/v4')
 var async = require('async')
-var EventEmitter = require('events')
 var should = require('should')
 
 var Kanin = require('../')
@@ -56,17 +56,7 @@ var baseTopology = {
   ]
 }
 
-class EventArray extends EventEmitter {
-  constructor () {
-    super()
-    this.data = []
-  }
-
-  push (obj) {
-    this.data.push(obj)
-    this.emit('change')
-  }
-}
+function noop () {}
 
 describe('Kanin', function () {
   var connection
@@ -94,10 +84,13 @@ describe('Kanin', function () {
     async.series(
       [
         next => {
-          amqp.connect(utils.amqpUrl(baseTopology.connection), (err, conn) => {
-            connection = conn
-            next(err)
-          })
+          amqp.connect(
+            utils.amqpUrl(baseTopology.connection),
+            (err, conn) => {
+              connection = conn
+              next(err)
+            }
+          )
         },
         next => {
           connection.createChannel((err, ch) => {
@@ -126,10 +119,7 @@ describe('Kanin', function () {
     })
 
     it('can be established', function (done) {
-      mq.configure(err => {
-        should.not.exist(err)
-        done()
-      })
+      mq.configure(done)
     })
 
     it('can subscribe/publish message', function (done) {
@@ -137,7 +127,7 @@ describe('Kanin', function () {
 
       function onMessage (message) {
         message.ack()
-        messages.push(message)
+        process.nextTick(() => messages.push(message))
       }
 
       async.series(
@@ -147,30 +137,36 @@ describe('Kanin', function () {
             mq.handle({ queue: 'test-queue', onMessage: onMessage }, next)
           },
           next => {
-            mq.publish('test-exchange', {
-              routingKey: 'test.1',
-              body: {
-                key: 1
-              }
-            })
-            messages.once('change', next)
+            mq.publish(
+              'test-exchange',
+              {
+                routingKey: 'test.1',
+                body: {
+                  key: 1
+                }
+              },
+              next
+            )
+          },
+          next => {
+            messages.once('push', () => next())
           }
         ],
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({ key: 1 })
+          messages[0].body.should.deepEqual({ key: 1 })
           done()
         }
       )
     })
 
     it('connection error with unacked messages', function (done) {
-      this.timeout(0)
+      this.timeout(10000)
       var afterError = false
       var messages = []
       function onMessage (message) {
-        messages.push(message)
+        process.nextTick(() => messages.push(message))
 
         // Not acking any messages makes them stay in queue
         if (afterError) {
@@ -193,12 +189,16 @@ describe('Kanin', function () {
           },
           next => {
             for (var i = 0; i < 50; i++) {
-              mq.publish('test-exchange', {
-                routingKey: 'test.1',
-                body: {
-                  key: i
-                }
-              })
+              mq.publish(
+                'test-exchange',
+                {
+                  routingKey: 'test.1',
+                  body: {
+                    key: i
+                  }
+                },
+                noop
+              )
             }
 
             setTimeout(next, 100)
@@ -265,18 +265,26 @@ describe('Kanin', function () {
           },
           next => {
             for (var i = 0; i < 50; i++) {
-              mq.publish('test-exchange', {
-                routingKey: 'test.1',
-                body: {
-                  key: i
-                }
-              })
-              mq.publish('test-exchange', {
-                routingKey: 'test.2',
-                body: {
-                  key: i
-                }
-              })
+              mq.publish(
+                'test-exchange',
+                {
+                  routingKey: 'test.1',
+                  body: {
+                    key: i
+                  }
+                },
+                noop
+              )
+              mq.publish(
+                'test-exchange',
+                {
+                  routingKey: 'test.2',
+                  body: {
+                    key: i
+                  }
+                },
+                noop
+              )
             }
             setTimeout(next, 100)
           }
@@ -304,7 +312,7 @@ describe('Kanin', function () {
                 options: { prefetch: 1 },
                 onMessage: msg => {
                   msg.ack()
-                  messages.push(msg)
+                  process.nextTick(() => messages.push(msg))
                 }
               },
               next
@@ -318,7 +326,7 @@ describe('Kanin', function () {
             setTimeout(next, 50)
           },
           next => {
-            messages.once('change', next)
+            messages.once('push', () => next())
             publish('test-exchange', {
               routingKey: 'test.1',
               body: {
@@ -330,15 +338,15 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({ test: 1 })
-          messages.data.length.should.equal(1)
+          messages[0].body.should.deepEqual({ test: 1 })
+          messages.length.should.equal(1)
           done()
         }
       )
     })
 
     it('publish after unsubscribe all queues', function (done) {
-      this.timeout(0)
+      this.timeout(10000)
       var message
       async.series(
         [
@@ -403,7 +411,7 @@ describe('Kanin', function () {
             setTimeout(next, 20000)
           },
           next => {
-            messages.once('change', next)
+            messages.once('push', () => next())
             publish('test-exchange', {
               routingKey: 'test.1',
               body: {
@@ -415,8 +423,67 @@ describe('Kanin', function () {
         err => {
           if (err) return done(err)
 
-          messages.data[0].body.should.deepEqual({ test: 1 })
-          messages.data.length.should.equal(1)
+          messages[0].body.should.deepEqual({ test: 1 })
+          messages.length.should.equal(1)
+          done()
+        }
+      )
+    })
+
+    it('handles drain', function (done) {
+      this.timeout(10000)
+      const buf = Buffer.alloc(50 * 1024, 'a')
+      const messages = []
+      let drained = false
+      const arr = Array.from({ length: 100 }, (x, i) => i)
+      async.series(
+        [
+          next => mq.configure(next),
+          next => {
+            mq.handle(
+              {
+                queue: 'test-queue',
+                options: { prefetch: 10 },
+                onMessage: msg => {
+                  msg.ack()
+                  messages.push(msg)
+                }
+              },
+              next
+            )
+          },
+          next => {
+            mq.once('channel.drain', () => {
+              drained = true
+            })
+
+            async.eachSeries(
+              arr,
+              (i, cb) => {
+                mq.publish(
+                  'test-exchange',
+                  {
+                    routingKey: 'test.1',
+                    body: {
+                      test: i,
+                      data: buf
+                    }
+                  },
+                  cb
+                )
+              },
+              next
+            )
+          },
+          next => {
+            setTimeout(next, 1000)
+          }
+        ],
+        err => {
+          if (err) return done(err)
+          messages.length.should.equal(100)
+          messages.map(x => x.body.test).should.deepEqual(arr)
+          drained.should.equal(true)
           done()
         }
       )
@@ -496,11 +563,14 @@ describe('Kanin', function () {
       var messages = []
       function onRequest (message) {
         messages.push(message)
-        message.reply({
-          statusCode: 200,
-          message: 'OK',
-          data: {}
-        })
+        message.reply(
+          {
+            statusCode: 200,
+            message: 'OK',
+            data: {}
+          },
+          noop
+        )
         message.ack()
       }
 
@@ -548,6 +618,136 @@ describe('Kanin', function () {
             }
           ])
           messages.length.should.equal(2)
+          done()
+        }
+      )
+    })
+
+    it('handles request drain', function (done) {
+      this.timeout(5000)
+      const messages = []
+      const buf = Buffer.alloc(50 * 1024, 'a')
+      const arr = Array.from({ length: 100 }, (x, i) => i)
+
+      function onRequest (message) {
+        message.reply(
+          {
+            statusCode: 200,
+            message: 'OK',
+            data: { i: message.body.i }
+          },
+          noop
+        )
+        message.ack()
+      }
+
+      let drained = false
+      requester.once('channel.drain', () => {
+        drained = true
+      })
+
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: { prefetch: 5 },
+                onMessage: onRequest
+              },
+              next
+            )
+          },
+          next => {
+            async.each(
+              arr,
+              (i, cb) => {
+                requester.request(
+                  'requests-exchange',
+                  {
+                    routingKey: 'test.request',
+                    body: {
+                      data: buf,
+                      i
+                    }
+                  },
+                  (err, response) => {
+                    if (err) {
+                      return cb(err)
+                    }
+                    response.ack()
+                    messages.push(response)
+                    cb()
+                  }
+                )
+              },
+              next
+            )
+          }
+        ],
+        err => {
+          if (err) return done(err)
+
+          messages.map(m => m.body.data.i).should.deepEqual(arr)
+          drained.should.equal(true)
+          done()
+        }
+      )
+    })
+
+    it('handles reply drain', function (done) {
+      this.timeout(5000)
+      const messages = []
+      const buf = Buffer.alloc(50 * 1024, 'a')
+      const arr = Array.from({ length: 100 }, (x, i) => i)
+
+      let drained = false
+      requester.once('channel.drain', () => {
+        drained = true
+      })
+
+      async.series(
+        [
+          next => {
+            responder.handle(
+              {
+                queue: 'test-requests-queue',
+                options: { prefetch: 5 },
+                onMessage (message) {
+                  message.ack()
+                  messages.push(message)
+                }
+              },
+              next
+            )
+          },
+          next => {
+            async.each(
+              arr,
+              (i, cb) => {
+                requester.reply(
+                  {
+                    properties: {
+                      correlationId: i.toString(),
+                      replyTo: 'test-requests-queue'
+                    }
+                  },
+                  { data: { i, buf } },
+                  cb
+                )
+              },
+              next
+            )
+          },
+          next => {
+            setTimeout(next, 1000)
+          }
+        ],
+        err => {
+          if (err) return done(err)
+
+          messages.map(m => m.body.data.i).should.deepEqual(arr)
+          drained.should.equal(true)
           done()
         }
       )
@@ -716,11 +916,14 @@ describe('Kanin', function () {
       var messages = []
       function onRequest (message) {
         messages.push(message)
-        message.reply({
-          statusCode: 200,
-          message: 'OK',
-          data: {}
-        })
+        message.reply(
+          {
+            statusCode: 200,
+            message: 'OK',
+            data: {}
+          },
+          noop
+        )
         message.ack()
       }
 
@@ -803,16 +1006,19 @@ describe('Kanin', function () {
       function onRequest (message) {
         messages.push(message)
 
-        let prevCorrelationId = message.properties.correlationId
-        let prevMessageId = message.properties.messageId
+        const prevCorrelationId = message.properties.correlationId
+        const prevMessageId = message.properties.messageId
 
         message.properties.correlationId = 'spoofed'
         message.properties.messageId = 'spoofed'
-        message.reply({
-          statusCode: 200,
-          message: 'OK',
-          data: {}
-        })
+        message.reply(
+          {
+            statusCode: 200,
+            message: 'OK',
+            data: {}
+          },
+          noop
+        )
 
         message.properties.correlationId = prevCorrelationId
         message.properties.messageId = prevMessageId
@@ -864,11 +1070,14 @@ describe('Kanin', function () {
       var messages = []
       function onRequest (message) {
         messages.push(message)
-        message.reply({
-          statusCode: 200,
-          message: 'OK',
-          data: {}
-        })
+        message.reply(
+          {
+            statusCode: 200,
+            message: 'OK',
+            data: {}
+          },
+          noop
+        )
         message.ack()
       }
 
