@@ -1,7 +1,7 @@
 /* eslint-env mocha */
 var amqp = require('amqplib/callback_api')
 var EventArray = require('event-array')
-var uuid = require('uuid/v4')
+var uuid = require('uuid').v4
 var async = require('async')
 var should = require('should')
 

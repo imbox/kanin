@@ -1,6 +1,6 @@
 {
   "name": "kanin",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "repository": "git://github.com/imbox/kanin",
   "description": "RabbitMQ client",
   "keywords": [
@@ -12,19 +12,19 @@
     "test": "npm run test:setup && npm run test:run; npm run test:teardown",
     "test:setup": "./test/setup.sh",
     "test:teardown": "./test/teardown.sh",
-    "test:run": "mocha ./test/*.spec.js"
+    "test:run": "mocha --exit ./test/*.spec.js"
   },
   "author": "Mathias Lundell",
   "license": "ISC",
   "dependencies": {
-    "amqplib": "^0.5.1",
-    "async": "^3.1.0",
-    "fast-safe-stringify": "^2.0.4",
-    "uuid": "^3.1.0"
+    "amqplib": "^0.6.0",
+    "async": "^3.2.0",
+    "fast-safe-stringify": "^2.0.7",
+    "uuid": "^8.3.1"
   },
   "devDependencies": {
-    "event-array": "^2.0.0",
-    "mocha": "^3.5.0",
-    "should": "^12.0.0"
+    "event-array": "^2.1.1",
+    "mocha": "^8.2.1",
+    "should": "^13.2.3"
   }
 }

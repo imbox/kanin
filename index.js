@@ -3,7 +3,7 @@ var async = require('async')
 var events = require('events')
 var safeStringify = require('fast-safe-stringify')
 var util = require('util')
-var uuid = require('uuid/v4')
+var uuid = require('uuid').v4
 
 var Topology = require('./lib/topology')
 
