@@ -498,6 +498,13 @@ Kanin.prototype._onReply = function (message) {
     r => r.correlationId === correlationId
   )
   if (idx === -1) {
+    if (message.properties.contentType === 'application/json') {
+      try {
+        message.content = JSON.parse(message.content)
+      } catch (err) {
+        // noop
+      }
+    }
     console.error(`reply without matching request ${JSON.stringify(message)}`)
     return message.reject()
   }
