@@ -14,8 +14,8 @@
     "test:teardown": "./test/teardown.sh",
     "test:run": "mocha --exit ./test/*.spec.js"
   },
-  "author": "Mathias Lundell",
-  "license": "ISC",
+  "author": "ImBox Sweden AB",
+  "license": "MIT",
   "dependencies": {
     "amqplib": "^0.7.1",
     "async": "^3.2.0",
